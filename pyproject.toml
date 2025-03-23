@@ -1,0 +1,20 @@
+[project]
+name = "rag-simple"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "fduxiao", email = "9294979+fduxiao@users.noreply.github.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "chromadb>=0.6.3",
+    "ollama>=0.4.7",
+]
+
+[project.scripts]
+rag-simple = "rag_simple:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

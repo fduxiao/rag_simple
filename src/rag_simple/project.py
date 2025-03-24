@@ -4,7 +4,7 @@ from pathlib import Path
 import tomllib
 import tomli_w
 import yaml
-from .ollama_client import OllamaClient
+from .ollama_client import OllamaClient, OllamaConfig
 from .embedding import Embedding
 
 
@@ -38,24 +38,36 @@ class RAGProjectConfig:
 
 class RAGProject:
     Filename = "rag_project.toml"
+    OllamaConfigFilename = "ollama.toml"
     Environ = "RAG_PROJECT"
 
     def __init__(self, project_path: Path | str):
         self.project_path: Path = Path(project_path)
         self.config: RAGProjectConfig = RAGProjectConfig()
+        self.ollama_config: OllamaConfig = OllamaConfig()
 
     @property
     def project_file(self):
         return self.project_path / self.Filename
 
+    @property
+    def ollama_config_file(self):
+        return self.project_path / self.OllamaConfigFilename
+
     def write_project_file(self):
         with open(self.project_file, "wb") as file:
             tomli_w.dump(self.config.dump(), file)
+        if not self.ollama_config_file.exists():
+            with open(self.ollama_config_file, "wb") as file:
+                tomli_w.dump(self.ollama_config.dump(), file)
 
     def load_project_file(self):
         with open(self.project_file, 'rb') as file:
             data = tomllib.load(file)
-        self.config.load(data)
+            self.config.load(data)
+        with open(self.ollama_config_file, 'rb') as file:
+            data = tomllib.load(file)
+            self.ollama_config.load(data)
 
     @classmethod
     def find_possible_project(cls, path: Path | str = None):
@@ -94,13 +106,19 @@ class RAGProject:
     def documents_dir(self) -> Path:
         return self.parse_dir(self.config.documents_dir)
 
+    @property
+    def project_gitignore(self) -> Path:
+        return self.project_path / ".gitignore"
+
     def init_project(self):
         if self.project_file.exists():
             print(f"Existing project file {self.project_file}.")
             return -1
         self.write_project_file()
-        with open(self.project_path / ".gitignore", "w") as file:
-            file.write(f"{self.config.embedding_dir}/\n")
+        if not self.project_gitignore.exists():
+            with open(self.project_gitignore, "w") as file:
+                file.write(f"{self.config.embedding_dir}/\n")
+                file.write(f"ollama.toml\n")
         self.embedding_dir.mkdir(parents=True, exist_ok=True)
         self.chroma_dir.mkdir(parents=True, exist_ok=True)
         self.documents_dir.mkdir(parents=True, exist_ok=True)
@@ -167,7 +185,7 @@ class RAGProject:
             yield one
 
     def build_db(self, dry_run, run_all):
-        ollama_client = OllamaClient()
+        ollama_client = OllamaClient(self.ollama_config)
         embedding = None
         if not dry_run:
             embedding = Embedding(self.chroma_dir, self.chromedb_name, ollama_client)

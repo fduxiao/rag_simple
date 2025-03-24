@@ -11,7 +11,7 @@ from .embedding import EmbeddingDB
 @dataclass
 class RAGProjectConfig:
     documents_dir: str = "documents"
-    embedding_dir: str = "embeddings"
+    embeddings_dir: str = "embeddings"
     embedding_model: str = "mxbai-embed-large"
     embedding_size: int = 1024
     generating_model: str = "deepseek-r1:7b"
@@ -20,7 +20,7 @@ class RAGProjectConfig:
     def dump(self):
         return {
             "documents": self.documents_dir,
-            "embeddings": self.embedding_dir,
+            "embeddings": self.embeddings_dir,
             "embedding_model": self.embedding_model,
             "embedding_size": self.embedding_size,
             "generating_model": self.generating_model,
@@ -29,7 +29,7 @@ class RAGProjectConfig:
 
     def load(self, data: dict):
         self.documents_dir = data.get("documents", self.documents_dir)
-        self.embedding_dir = data.get("embeddings", self.embedding_dir)
+        self.embeddings_dir = data.get("embeddings", self.embeddings_dir)
         self.embedding_model = data.get("embedding_model", self.embedding_model)
         self.embedding_size = data.get("embedding_size", self.embedding_size)
         self.generating_model = data.get("generating_model", self.generating_model)
@@ -91,12 +91,12 @@ class RAGProject:
         return self.project_path / path
 
     @property
-    def embedding_dir(self) -> Path:
-        return self.parse_dir(self.config.embedding_dir)
+    def embeddings_dir(self) -> Path:
+        return self.parse_dir(self.config.embeddings_dir)
 
     @property
     def chroma_dir(self) -> Path:
-        return self.embedding_dir / "chroma"
+        return self.embeddings_dir / "chroma"
 
     @property
     def chromedb_name(self) -> str:
@@ -117,9 +117,9 @@ class RAGProject:
         self.write_project_file()
         if not self.project_gitignore.exists():
             with open(self.project_gitignore, "w") as file:
-                file.write(f"{self.config.embedding_dir}/\n")
+                file.write(f"{self.config.embeddings_dir}/\n")
                 file.write(f"ollama.toml\n")
-        self.embedding_dir.mkdir(parents=True, exist_ok=True)
+        self.embeddings_dir.mkdir(parents=True, exist_ok=True)
         self.chroma_dir.mkdir(parents=True, exist_ok=True)
         self.documents_dir.mkdir(parents=True, exist_ok=True)
 

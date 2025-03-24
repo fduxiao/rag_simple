@@ -958,6 +958,7 @@ dependencies = [
     { name = "ollama" },
     { name = "pyyaml" },
     { name = "tomli-w" },
+    { name = "tqdm" },
 ]
 
 [package.metadata]
@@ -966,6 +967,7 @@ requires-dist = [
     { name = "ollama", specifier = ">=0.4.7" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "tomli-w", specifier = ">=1.2.0" },
+    { name = "tqdm", specifier = ">=4.67.1" },
 ]
 
 [[package]]

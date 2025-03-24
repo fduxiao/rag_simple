@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import tomllib
 import tomli_w
+import tqdm
 import yaml
 from .ollama_client import OllamaClient, OllamaConfig
 from .embedding import EmbeddingDB
@@ -189,9 +190,16 @@ class RAGProject:
         ollama_client = OllamaClient(self.ollama_config)
         embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chromedb_name)
 
-        for one in self.iter_build_targets(run_all, embedding_db):
-            if dry_run:
+        targets = list(self.iter_build_targets(run_all, embedding_db))
+        if dry_run:
+            for one in targets:
                 print(one)
-                continue
-            # build embedding
-            embedding_db.add_document(one, ollama_client, self.config.embedding_model)
+            return
+        # build embedding
+        with tqdm.tqdm(targets) as progress:
+            for one in targets:
+                progress.set_postfix_str(str(one))
+                embedding_db.add_document(one, ollama_client, self.config.embedding_model)
+                progress.update()
+            progress.set_postfix_str("done")
+            progress.refresh()

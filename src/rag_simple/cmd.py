@@ -12,6 +12,16 @@ def cmd_init(args):
     return project.init_project()
 
 
+def cmd_build(args):
+    project = RAGProject.find_possible_project()
+    if project is None:
+        print(f"Unable to find a rag project. Use environ ${RAGProject.Environ} to specify.")
+        return -1
+    dry_run = bool(args.dry_run)
+    run_all = bool(args.all)
+    project.build_db(dry_run=dry_run, run_all=run_all)
+
+
 def main():
     parser = argparse.ArgumentParser(description="simple RAG project")
 
@@ -37,6 +47,11 @@ def main():
     parser_new_doc.add_argument("path", help="document path")
     parser_new_doc.add_argument("--force", "-f", action="count", help="overwrite when existing")
     parser_new_doc.set_defaults(func=lambda x: RAGProject.new_doc(x.path, bool(x.force)))
+
+    parser_build = sub_parsers.add_parser("build", help="build chroma database")
+    parser_build.add_argument("--dry-run", "-d", action="count", help="show files only")
+    parser_build.add_argument("--all", "-a", action="count", help="rebuild all")
+    parser_build.set_defaults(func=cmd_build)
 
     args = parser.parse_args()
     exit(args.func(args) or 0)

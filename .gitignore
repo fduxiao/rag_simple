@@ -175,3 +175,6 @@ cython_debug/
 
 # Pycharm
 /.idea/
+
+# test project path
+rag_project/

@@ -1,2 +1,2 @@
-def main() -> None:
-    print("Hello from rag-simple!")
+from .project import RAGProject
+from .cmd import main

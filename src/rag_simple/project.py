@@ -243,6 +243,7 @@ class RAGProject:
 
         # enter ask-answer loop
         prompt = Prompt()
+        retrieved = set()
         while True:
             try:
                 user_input = input(">>> ")
@@ -253,9 +254,16 @@ class RAGProject:
                 print()
                 return
 
-            embedding = ollama_client.embed(self.embedding_model, user_input)
-            for knowledge in embedding_db.retrieve(embedding, limit=3):
-                prompt.add_knowledge(knowledge)
+            # parse user input
+            if user_input.startswith("/retrieve "):
+                user_input = user_input[len('/retrieve '):]
+                # add knowledge
+                embedding = ollama_client.embed(self.embedding_model, user_input)
+                for knowledge in embedding_db.retrieve(embedding, limit=1):
+                    if knowledge.id not in retrieved:
+                        prompt.add_knowledge(knowledge)
+                        retrieved.add(knowledge.id)
+                continue
 
             prompt.add_message(user_input, role="user")
 

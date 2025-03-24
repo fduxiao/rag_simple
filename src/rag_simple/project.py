@@ -5,7 +5,7 @@ import tomllib
 import tomli_w
 import yaml
 from .ollama_client import OllamaClient, OllamaConfig
-from .embedding import Embedding
+from .embedding import EmbeddingDB
 
 
 @dataclass
@@ -158,7 +158,7 @@ class RAGProject:
                         "role": "system",
                         "desc": "put some desired meta data"
                     },
-                    "text": "Another\ndocument.\nNote that YAML uses `---` to separate documents",
+                    "text": "Another\ndocument.\nNote that YAML uses `--- !tag` to separate documents",
                 },
             ]
             # TODO: write different format with respect to file extension
@@ -175,24 +175,23 @@ class RAGProject:
             elif one.is_dir():
                 self.iter_documents(one)
 
-    def iter_build_pair(self, run_all):
+    def iter_build_targets(self, run_all, embedding_db: EmbeddingDB):
         for one in self.iter_documents():
             if run_all:
                 yield one
                 continue
             source_time = os.path.getmtime(one)
-            print(source_time)
-            yield one
+            target_time = embedding_db.document_mtime(one)
+            if target_time is None or target_time < source_time:
+                yield one
 
     def build_db(self, dry_run, run_all):
         ollama_client = OllamaClient(self.ollama_config)
-        embedding = None
-        if not dry_run:
-            embedding = Embedding(self.chroma_dir, self.chromedb_name, ollama_client)
+        embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chromedb_name)
 
-        for one in self.iter_build_pair(run_all):
+        for one in self.iter_build_targets(run_all, embedding_db):
             if dry_run:
                 print(one)
                 continue
             # build embedding
-            embedding.add_document(one)
+            embedding_db.add_document(one, ollama_client, self.config.embedding_model)

@@ -24,3 +24,8 @@ class OllamaClient:
             host=config.host,
             headers=config.headers
         )
+
+    def embed(self, model, text):
+        resp = self.client.embed(model=model, input=text)
+        embeddings = resp["embeddings"][0]
+        return embeddings

@@ -1,21 +1,10 @@
-from dataclasses import dataclass, field
 import ollama
+from .kv_model import KVModel, Field
 
 
-@dataclass
-class OllamaConfig:
-    host: str = "http://localhost:11434"
-    headers: dict = field(default_factory=dict)
-
-    def dump(self):
-        return {
-            "host": self.host,
-            "headers": self.headers
-        }
-
-    def load(self, data: dict):
-        self.host = data.get("host", self.host)
-        self.headers = data.get("headers", self.headers)
+class OllamaConfig(KVModel):
+    host: str = Field(default="http://localhost:11434")
+    headers: dict = Field(default_factory=dict)
 
 
 class OllamaClient:

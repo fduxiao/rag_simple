@@ -1,39 +1,23 @@
-from dataclasses import dataclass
 import datetime
 from pathlib import Path
 import chromadb
 import yaml
 
 from .ollama_client import OllamaClient
-from.prompt import Knowledge
+from .prompt import Knowledge
+from .kv_model import KVModel, Field
 
 
-@dataclass
-class ChromaConfig:
-    db_name: str = "default_database"
-    space: str = "l2"  # l2, ip, cosine
-    construction_ef: int = 100
-    search_ef: int = 100
-    M: int = 16
+class HNSWConfig(KVModel):
+    space: str = Field(default="l2")
+    construction_ef: int = Field(default=100)
+    search_ef: int = Field(default=100)
+    M: int = Field(default=16)
 
-    def dump(self):
-        return {
-            "name": self.db_name,
-            "hnsw": {
-                "space": self.space,
-                "construction_ef": self.construction_ef,
-                "search_ef": self.search_ef,
-                "M": self.M,
-            }
-        }
 
-    def load(self, data: dict):
-        self.db_name = data.get("name", self.db_name)
-        hnsw = data.get("hnsw", {})
-        self.space = hnsw.get("space", self.space)
-        self.construction_ef = hnsw.get("construction_ef", self.construction_ef)
-        self.search_ef = hnsw.get("search_ef", self.search_ef)
-        self.M = hnsw.get("M", self.M)
+class ChromaConfig(KVModel):
+    db_name: str = Field(default="default_database")
+    hnsw: HNSWConfig = HNSWConfig.as_field()
 
 
 class EmbeddingDB:
@@ -43,10 +27,10 @@ class EmbeddingDB:
         self.embedding_coll = self.chroma.get_or_create_collection(
             "chunks",
             metadata={
-                "hnsw:space": chrome_config.space,
-                "hnsw:construction_ef": chrome_config.construction_ef,
-                "hnsw:search_ef": chrome_config.search_ef,
-                "hnsw:M": chrome_config.M,
+                "hnsw:space": chrome_config.hnsw.space,
+                "hnsw:construction_ef": chrome_config.hnsw.construction_ef,
+                "hnsw:search_ef": chrome_config.hnsw.search_ef,
+                "hnsw:M": chrome_config.hnsw.M,
             }
         )
 

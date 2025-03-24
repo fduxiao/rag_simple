@@ -1,4 +1,3 @@
-from dataclasses import dataclass, field
 import os
 from pathlib import Path
 import tomllib
@@ -6,38 +5,19 @@ import tomli_w
 import tqdm
 import yaml
 
+from .kv_model import KVModel, Field
 from .ollama_client import OllamaClient, OllamaConfig
 from .embedding import EmbeddingDB, ChromaConfig
 from .prompt import Prompt
 
 
-@dataclass
-class RAGProjectConfig:
-    documents_dir: str = "documents"
-    embeddings_dir: str = "embeddings"
-    embedding_model: str = "mxbai-embed-large"
-    embedding_size: int = 1024
-    generating_model: str = "deepseek-r1:7b"
-    chromadb_config: ChromaConfig = field(default_factory=ChromaConfig)
-
-    def dump(self):
-        return {
-            "documents": self.documents_dir,
-            "embeddings": self.embeddings_dir,
-            "embedding_model": self.embedding_model,
-            "embedding_size": self.embedding_size,
-            "generating_model": self.generating_model,
-            "chromadb": self.chromadb_config.dump()
-        }
-
-    def load(self, data: dict):
-        self.documents_dir = data.get("documents", self.documents_dir)
-        self.embeddings_dir = data.get("embeddings", self.embeddings_dir)
-        self.embedding_model = data.get("embedding_model", self.embedding_model)
-        self.embedding_size = data.get("embedding_size", self.embedding_size)
-        self.generating_model = data.get("generating_model", self.generating_model)
-        self.chromadb_config.load(data.get("chromadb", {}))
-
+class RAGProjectConfig(KVModel):
+    documents_dir: str = Field(default="documents")
+    embeddings_dir: str = Field(default="embeddings")
+    embedding_model: str = Field(default="mxbai-embed-large")
+    embedding_size: int = Field(default=1024)
+    generating_model: str = Field(default="deepseek-r1:7b")
+    chromadb_config: ChromaConfig = ChromaConfig.as_field()
 
 
 class RAGProject:

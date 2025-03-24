@@ -35,6 +35,16 @@ def cmd_ask(args):
     return project.ask(args.question)
 
 
+def cmd_retrieve(args):
+    project = RAGProject.find_possible_project()
+    if project is None:
+        print(f"Unable to find a rag project. Use environ ${RAGProject.Environ} to specify.")
+        return -1
+    content = args.content
+    limit = args.limit
+    project.retrieve(content, limit)
+
+
 def main():
     parser = argparse.ArgumentParser(description="simple RAG project")
 
@@ -71,6 +81,11 @@ def main():
                                          help="give some keyword to help retrieving")
     parser_ask.add_argument("question", default=None, nargs="?")
     parser_ask.set_defaults(func=cmd_ask)
+
+    parser_retrieve = sub_parsers.add_parser("retrieve", help="retrieve from vector database (chromadb)")
+    parser_retrieve.add_argument("content")
+    parser_retrieve.add_argument("--limit", default=5, type=int)
+    parser_retrieve.set_defaults(func=cmd_retrieve)
 
     args = parser.parse_args()
     exit(args.func(args) or 0)

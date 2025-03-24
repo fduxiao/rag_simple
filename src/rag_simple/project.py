@@ -214,6 +214,15 @@ class RAGProject:
             progress.set_postfix_str("done")
             progress.refresh()
 
+    def retrieve(self, content, limit=5):
+        ollama_client = OllamaClient(self.ollama_config)
+        embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chromedb_name)
+
+        embedding = ollama_client.embed(self.embedding_model, content)
+        for knowledge in embedding_db.retrieve(embedding, limit=limit):
+            print(knowledge)
+
+
     def ask(self, question):
         ollama_client = OllamaClient(self.ollama_config)
         embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chromedb_name)

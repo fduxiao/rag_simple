@@ -29,3 +29,13 @@ class OllamaClient:
         resp = self.client.embed(model=model, input=text)
         embeddings = resp["embeddings"][0]
         return embeddings
+
+    def chat(self, model, messages):
+        stream = self.client.chat(
+            model=model,
+            messages=messages,
+            stream=True,
+        )
+
+        for chunk in stream:
+            yield chunk

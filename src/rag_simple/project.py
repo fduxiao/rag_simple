@@ -5,8 +5,10 @@ import tomllib
 import tomli_w
 import tqdm
 import yaml
+
 from .ollama_client import OllamaClient, OllamaConfig
 from .embedding import EmbeddingDB
+from .prompt import Prompt
 
 
 @dataclass
@@ -219,5 +221,39 @@ class RAGProject:
         if question is not None:
             # make embedding
             embedding = ollama_client.embed(self.embedding_model, question)
-            for knowledge in embedding_db.retrieve(embedding):
-                print(knowledge)
+            prompt = Prompt()
+            for knowledge in embedding_db.retrieve(embedding, limit=5):
+                prompt.add_knowledge(knowledge)
+            for chunk in ollama_client.chat(self.generating_model, prompt):
+                print(chunk['message']['content'], end='', flush=True)
+            return
+
+        # enter ask-answer loop
+        prompt = Prompt()
+        while True:
+            try:
+                user_input = input(">>> ")
+            except KeyboardInterrupt:
+                print()
+                continue
+            except EOFError:
+                print()
+                return
+
+            embedding = ollama_client.embed(self.embedding_model, user_input)
+            for knowledge in embedding_db.retrieve(embedding, limit=3):
+                prompt.add_knowledge(knowledge)
+
+            prompt.add_message(user_input, role="user")
+
+            try:
+                response = ""
+                for chunk in ollama_client.chat(self.generating_model, prompt):
+                    content = chunk['message']['content']
+                    response += content
+                    print(content, end='', flush=True)
+                print()
+            except KeyboardInterrupt:
+                continue
+
+            prompt.add_message(response, role="assistant")

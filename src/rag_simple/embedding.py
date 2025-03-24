@@ -1,19 +1,10 @@
-from dataclasses import dataclass
 import datetime
 from pathlib import Path
-from typing import Any, Mapping
 import chromadb
 import yaml
 
 from .ollama_client import OllamaClient
-
-
-@dataclass
-class Knowledge:
-    id: str
-    text: str
-    metadata: Mapping[str, Any]
-    dist: float
+from.prompt import Knowledge
 
 
 class EmbeddingDB:

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 from pathlib import Path
 import tomllib
@@ -7,7 +7,7 @@ import tqdm
 import yaml
 
 from .ollama_client import OllamaClient, OllamaConfig
-from .embedding import EmbeddingDB
+from .embedding import EmbeddingDB, ChromaConfig
 from .prompt import Prompt
 
 
@@ -18,7 +18,7 @@ class RAGProjectConfig:
     embedding_model: str = "mxbai-embed-large"
     embedding_size: int = 1024
     generating_model: str = "deepseek-r1:7b"
-    chromadb_name: str = "default_database"
+    chromadb_config: ChromaConfig = field(default_factory=ChromaConfig)
 
     def dump(self):
         return {
@@ -27,7 +27,7 @@ class RAGProjectConfig:
             "embedding_model": self.embedding_model,
             "embedding_size": self.embedding_size,
             "generating_model": self.generating_model,
-            "chromadb_name": self.chromadb_name,
+            "chromadb": self.chromadb_config.dump()
         }
 
     def load(self, data: dict):
@@ -36,7 +36,8 @@ class RAGProjectConfig:
         self.embedding_model = data.get("embedding_model", self.embedding_model)
         self.embedding_size = data.get("embedding_size", self.embedding_size)
         self.generating_model = data.get("generating_model", self.generating_model)
-        self.chromadb_name = data.get("chromadb_name", self.chromadb_name)
+        self.chromadb_config.load(data.get("chromadb", {}))
+
 
 
 class RAGProject:
@@ -102,8 +103,8 @@ class RAGProject:
         return self.embeddings_dir / "chroma"
 
     @property
-    def chromedb_name(self) -> str:
-        return self.config.chromadb_name
+    def chroma_config(self) -> ChromaConfig:
+        return self.config.chromadb_config
 
     @property
     def documents_dir(self) -> Path:
@@ -198,7 +199,7 @@ class RAGProject:
 
     def build_db(self, dry_run, run_all):
         ollama_client = OllamaClient(self.ollama_config)
-        embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chromedb_name)
+        embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chroma_config)
 
         targets = list(self.iter_build_targets(run_all, embedding_db))
         if dry_run:
@@ -216,16 +217,19 @@ class RAGProject:
 
     def retrieve(self, content, limit=5):
         ollama_client = OllamaClient(self.ollama_config)
-        embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chromedb_name)
+        embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chroma_config)
 
         embedding = ollama_client.embed(self.embedding_model, content)
         for knowledge in embedding_db.retrieve(embedding, limit=limit):
             print(knowledge)
 
+    def clear(self):
+        embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chroma_config)
+        embedding_db.clear()
 
     def ask(self, question):
         ollama_client = OllamaClient(self.ollama_config)
-        embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chromedb_name)
+        embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chroma_config)
 
         if question is not None:
             # make embedding

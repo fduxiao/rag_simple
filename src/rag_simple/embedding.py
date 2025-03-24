@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import datetime
 from pathlib import Path
 import chromadb
@@ -7,11 +8,50 @@ from .ollama_client import OllamaClient
 from.prompt import Knowledge
 
 
+@dataclass
+class ChromaConfig:
+    db_name: str = "default_database"
+    space: str = "l2"  # l2, ip, cosine
+    construction_ef: int = 100
+    search_ef: int = 100
+    M: int = 16
+
+    def dump(self):
+        return {
+            "name": self.db_name,
+            "hnsw": {
+                "space": self.space,
+                "construction_ef": self.construction_ef,
+                "search_ef": self.search_ef,
+                "M": self.M,
+            }
+        }
+
+    def load(self, data: dict):
+        self.db_name = data.get("name", self.db_name)
+        hnsw = data.get("hnsw", {})
+        self.space = hnsw.get("space", self.space)
+        self.construction_ef = hnsw.get("construction_ef", self.construction_ef)
+        self.search_ef = hnsw.get("search_ef", self.search_ef)
+        self.M = hnsw.get("M", self.M)
+
+
 class EmbeddingDB:
-    def __init__(self, documents_dir: Path, chroma_path: Path, chrome_db: str):
+    def __init__(self, documents_dir: Path, chroma_path: Path, chrome_config: ChromaConfig):
         self.documents_dir = documents_dir
-        self.chroma = chromadb.PersistentClient(str(chroma_path), database=chrome_db)
-        self.embedding_coll = self.chroma.get_or_create_collection("chunks")
+        self.chroma = chromadb.PersistentClient(str(chroma_path), database=chrome_config.db_name)
+        self.embedding_coll = self.chroma.get_or_create_collection(
+            "chunks",
+            metadata={
+                "hnsw:space": chrome_config.space,
+                "hnsw:construction_ef": chrome_config.construction_ef,
+                "hnsw:search_ef": chrome_config.search_ef,
+                "hnsw:M": chrome_config.M,
+            }
+        )
+
+    def clear(self):
+        self.chroma.delete_collection("chunks")
 
     def document_mtime(self, doc_path: Path):
         rel_path = doc_path.relative_to(self.documents_dir)

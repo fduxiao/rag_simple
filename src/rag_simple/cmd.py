@@ -45,6 +45,19 @@ def cmd_retrieve(args):
     project.retrieve(content, limit)
 
 
+def cmd_clear(args):
+    project = RAGProject.find_possible_project()
+    if project is None:
+        print(f"Unable to find a rag project. Use environ ${RAGProject.Environ} to specify.")
+        return -1
+    yes = bool(args.yes)
+    if not yes:
+        confirm = input("You want to destroy everything you built? (yes/no): ")
+        if confirm != "yes":
+            return -1
+    project.clear()
+
+
 def main():
     parser = argparse.ArgumentParser(description="simple RAG project")
 
@@ -86,6 +99,10 @@ def main():
     parser_retrieve.add_argument("content")
     parser_retrieve.add_argument("--limit", default=5, type=int)
     parser_retrieve.set_defaults(func=cmd_retrieve)
+
+    parser_clear = sub_parsers.add_parser("clear", help="remove all embedding data")
+    parser_clear.add_argument("--yes", "-y", action="count", help="assume `yes` to all questions")
+    parser_clear.set_defaults(func=cmd_clear)
 
     args = parser.parse_args()
     exit(args.func(args) or 0)

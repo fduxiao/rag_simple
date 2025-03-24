@@ -22,6 +22,19 @@ def cmd_build(args):
     project.build_db(dry_run=dry_run, run_all=run_all)
 
 
+def cmd_ask(args):
+    keywords: list = args.keyword
+    if keywords is None:
+        keywords = []
+    if len(keywords) > 0:
+        print("Currently, keywords are not supported and are ignored.")
+    project = RAGProject.find_possible_project()
+    if project is None:
+        print(f"Unable to find a rag project. Use environ ${RAGProject.Environ} to specify.")
+        return -1
+    return project.ask(args.question)
+
+
 def main():
     parser = argparse.ArgumentParser(description="simple RAG project")
 
@@ -52,6 +65,12 @@ def main():
     parser_build.add_argument("--dry-run", "-d", action="count", help="show files only")
     parser_build.add_argument("--all", "-a", action="count", help="rebuild all")
     parser_build.set_defaults(func=cmd_build)
+
+    parser_ask = sub_parsers.add_parser("ask", help="ask with built database")
+    parser_ask.add_argument("--keyword", "-k", action="append", default=None,
+                                         help="give some keyword to help retrieving")
+    parser_ask.add_argument("question", default=None, nargs="?")
+    parser_ask.set_defaults(func=cmd_ask)
 
     args = parser.parse_args()
     exit(args.func(args) or 0)

@@ -186,6 +186,14 @@ class RAGProject:
             if target_time is None or target_time < source_time:
                 yield one
 
+    @property
+    def embedding_model(self):
+        return self.config.embedding_model
+
+    @property
+    def generating_model(self):
+        return self.config.generating_model
+
     def build_db(self, dry_run, run_all):
         ollama_client = OllamaClient(self.ollama_config)
         embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chromedb_name)
@@ -199,7 +207,17 @@ class RAGProject:
         with tqdm.tqdm(targets) as progress:
             for one in targets:
                 progress.set_postfix_str(str(one))
-                embedding_db.add_document(one, ollama_client, self.config.embedding_model)
+                embedding_db.add_document(one, ollama_client, self.embedding_model)
                 progress.update()
             progress.set_postfix_str("done")
             progress.refresh()
+
+    def ask(self, question):
+        ollama_client = OllamaClient(self.ollama_config)
+        embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chromedb_name)
+
+        if question is not None:
+            # make embedding
+            embedding = ollama_client.embed(self.embedding_model, question)
+            for knowledge in embedding_db.retrieve(embedding):
+                print(knowledge)

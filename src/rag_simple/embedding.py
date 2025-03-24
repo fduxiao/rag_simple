@@ -1,9 +1,19 @@
+from dataclasses import dataclass
 import datetime
 from pathlib import Path
+from typing import Any, Mapping
 import chromadb
 import yaml
 
 from .ollama_client import OllamaClient
+
+
+@dataclass
+class Knowledge:
+    id: str
+    text: str
+    metadata: Mapping[str, Any]
+    dist: float
 
 
 class EmbeddingDB:
@@ -51,3 +61,13 @@ class EmbeddingDB:
                 metadatas=[metadata],
                 documents=[text],
             )
+
+    def retrieve(self, embedding, limit=5):
+        results = self.embedding_coll.query(
+            query_embeddings=[embedding],
+            n_results=limit
+        )
+        for data_id, text, metadata, dist in zip(
+            results["ids"][0], results["documents"][0], results["metadatas"][0], results["distances"][0]
+        ):
+            yield Knowledge(data_id, text, metadata, dist)

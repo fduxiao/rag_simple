@@ -11,6 +11,17 @@ from .embedding import EmbeddingDB, ChromaConfig
 from .prompt import Prompt
 
 
+class PromptConfig(KVModel):
+    retrieval_prefix: str = Field(default="Response based on: ")
+    preset: list[dict] = Field(default_factory=lambda: [
+        {"role": "system", "content": "Response concisely."},
+        {"role": "system", "content":
+            "You will be given some references, related or not related to user input.\n"
+            "Judge whether they are related or not, and then response based on those references."
+         },
+    ])
+
+
 class RAGProjectConfig(KVModel):
     documents_dir: str = Field(default="documents")
     embeddings_dir: str = Field(default="embeddings")
@@ -18,6 +29,8 @@ class RAGProjectConfig(KVModel):
     embedding_size: int = Field(default=1024)
     generating_model: str = Field(default="deepseek-r1:7b")
     chromadb_config: ChromaConfig = ChromaConfig.as_field()
+
+    prompt: PromptConfig = PromptConfig.as_field()
 
 
 class RAGProject:
@@ -227,18 +240,23 @@ class RAGProject:
         ollama_client = OllamaClient(self.ollama_config)
         embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chroma_config)
 
+        retrieval_prefix = self.config.prompt.retrieval_prefix
+        prompt = Prompt()
+        prompt.messages.extend(self.config.prompt.preset)
+
         if question is not None:
             # make embedding
             embedding = ollama_client.embed(self.embedding_model, question)
-            prompt = Prompt()
-            for knowledge in embedding_db.retrieve(embedding, limit=5):
-                prompt.add_knowledge(knowledge)
+            for knowledge in embedding_db.retrieve(embedding, limit=3):
+                print(f'{knowledge.metadata["role"]}: ', knowledge.text.strip())
+                prompt.add_knowledge(knowledge.set_prefix(retrieval_prefix))
+            prompt.add_message(question, role="user")
             for chunk in ollama_client.chat(self.generating_model, prompt):
                 print(chunk['message']['content'], end='', flush=True)
+            print()
             return
 
         # enter ask-answer loop
-        prompt = Prompt()
         retrieved = set()
         while True:
             try:
@@ -257,10 +275,15 @@ class RAGProject:
                 embedding = ollama_client.embed(self.embedding_model, user_input)
                 for knowledge in embedding_db.retrieve(embedding, limit=1):
                     if knowledge.id not in retrieved:
-                        prompt.add_knowledge(knowledge)
+                        prompt.add_knowledge(knowledge.set_prefix(retrieval_prefix))
                         retrieved.add(knowledge.id)
                 continue
 
+            embedding = ollama_client.embed(self.embedding_model, user_input)
+            for knowledge in embedding_db.retrieve(embedding, limit=3):
+                if knowledge.id not in retrieved:
+                    prompt.add_knowledge(knowledge)
+                    retrieved.add(knowledge.id)
             prompt.add_message(user_input, role="user")
 
             try:

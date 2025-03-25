@@ -9,6 +9,10 @@ class Knowledge:
     metadata: Mapping[str, Any]
     dist: float
 
+    def set_prefix(self, prefix):
+        self.text = prefix + self.text
+        return self
+
     def to_prompt(self):
         return {
             "role": self.metadata.get("role", "system"),

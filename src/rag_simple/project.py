@@ -236,7 +236,7 @@ class RAGProject:
         embedding_db.clear()
         self.embeddings_update_file.unlink(missing_ok=True)
 
-    def ask(self, question):
+    def ask(self, question, limit):
         ollama_client = OllamaClient(self.ollama_config)
         embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chroma_config)
 
@@ -247,8 +247,8 @@ class RAGProject:
         if question is not None:
             # make embedding
             embedding = ollama_client.embed(self.embedding_model, question)
-            for knowledge in embedding_db.retrieve(embedding, limit=3):
-                print(f'{knowledge.metadata["role"]}: ', knowledge.text.strip())
+            for knowledge in embedding_db.retrieve(embedding, limit=limit):
+                print(f'{knowledge.metadata["role"]}: ', repr(knowledge.text.strip()))
                 prompt.add_knowledge(knowledge.set_prefix(retrieval_prefix))
             prompt.add_message(question, role="user")
             for chunk in ollama_client.chat(self.generating_model, prompt):
@@ -280,7 +280,7 @@ class RAGProject:
                 continue
 
             embedding = ollama_client.embed(self.embedding_model, user_input)
-            for knowledge in embedding_db.retrieve(embedding, limit=3):
+            for knowledge in embedding_db.retrieve(embedding, limit=limit):
                 if knowledge.id not in retrieved:
                     prompt.add_knowledge(knowledge)
                     retrieved.add(knowledge.id)

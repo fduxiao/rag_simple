@@ -148,6 +148,8 @@ class RAGProject:
             # TODO: write different format with respect to file extension
             yaml.safe_dump_all(data, file)
 
+
+    # iterate all documents
     def iter_documents(self, base: Path = None):
         if base is None:
             base = self.documents_dir
@@ -159,13 +161,23 @@ class RAGProject:
             elif one.is_dir():
                 self.iter_documents(one)
 
-    def iter_build_targets(self, run_all, embedding_db: EmbeddingDB):
+    @property
+    def embeddings_update_file(self) -> Path:
+        return self.embeddings_dir / "update.time"
+
+    def touch_embeddings_update(self):
+        self.embeddings_update_file.touch()
+
+    # find outdated documents
+    def iter_build_targets(self, run_all):
+        target_time = None
+        if self.embeddings_update_file.exists():
+            target_time = os.path.getmtime(self.embeddings_update_file)
         for one in self.iter_documents():
             if run_all:
                 yield one
                 continue
             source_time = os.path.getmtime(one)
-            target_time = embedding_db.document_mtime(one)
             if target_time is None or target_time < source_time:
                 yield one
 
@@ -181,7 +193,9 @@ class RAGProject:
         ollama_client = OllamaClient(self.ollama_config)
         embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chroma_config)
 
-        targets = list(self.iter_build_targets(run_all, embedding_db))
+        targets = list(self.iter_build_targets(run_all))
+        if len(targets) == 0:
+            return
         if dry_run:
             for one in targets:
                 print(one)
@@ -194,6 +208,7 @@ class RAGProject:
                 progress.update()
             progress.set_postfix_str("done")
             progress.refresh()
+        self.touch_embeddings_update()
 
     def retrieve(self, content, limit=5):
         ollama_client = OllamaClient(self.ollama_config)
@@ -206,6 +221,7 @@ class RAGProject:
     def clear(self):
         embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chroma_config)
         embedding_db.clear()
+        self.embeddings_update_file.unlink(missing_ok=True)
 
     def ask(self, question):
         ollama_client = OllamaClient(self.ollama_config)

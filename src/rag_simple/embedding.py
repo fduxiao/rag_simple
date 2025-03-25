@@ -1,4 +1,3 @@
-import datetime
 from pathlib import Path
 import chromadb
 import yaml
@@ -49,7 +48,6 @@ class EmbeddingDB:
 
     def read_document_chunk(self, doc_path: Path):
         rel_path = doc_path.relative_to(self.documents_dir)
-        mtime = datetime.datetime.now(datetime.UTC).timestamp()
         # TODO: read by file extension
         with open(doc_path, "r") as file:
             for index, one in enumerate(yaml.safe_load_all(file)):
@@ -59,7 +57,6 @@ class EmbeddingDB:
                 metadata.update({
                     "index": index,
                     "rel_path": str(rel_path),
-                    "mtime": mtime
                 })
                 yield data_id, text, metadata
 

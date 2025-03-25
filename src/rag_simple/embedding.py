@@ -1,8 +1,8 @@
 from pathlib import Path
 import chromadb
-import yaml
 
 from .ollama_client import OllamaClient
+from .document import DocumentLoader, Document, DocumentSentence
 from .prompt import Knowledge
 from .kv_model import KVModel, Field
 
@@ -36,50 +36,89 @@ class EmbeddingDB:
     def clear(self):
         self.chroma.delete_collection("chunks")
 
-    def document_mtime(self, doc_path: Path):
-        rel_path = doc_path.relative_to(self.documents_dir)
-        data = self.embedding_coll.get(where={"rel_path": str(rel_path)})
-        metadatas = data["metadatas"]
-        mtime = [x.get("mtime", 0) for x in metadatas]
-        mtime.sort()
-        if len(mtime) == 0:
-            return None
-        return mtime[0]  # smallest
-
-    def read_document_chunk(self, doc_path: Path):
-        rel_path = doc_path.relative_to(self.documents_dir)
-        # TODO: read by file extension
-        with open(doc_path, "r") as file:
-            for index, one in enumerate(yaml.safe_load_all(file)):
-                data_id = f'{rel_path}_{index}'
-                text = one["text"]
-                metadata = one.get("metadata", {})
-                metadata.update({
-                    "index": index,
-                    "rel_path": str(rel_path),
-                })
-                yield data_id, text, metadata
-
-    def add_document(self, doc_path: Path, ollama_client: OllamaClient, model):
-        rel_path = doc_path.relative_to(self.documents_dir)
-        # first clear old data
-        self.embedding_coll.delete(where={"rel_path": str(rel_path)})
-        for chunk in self.read_document_chunk(doc_path):
-            data_id, text, metadata = chunk
-            embedding = ollama_client.embed(model, text)
+    def add_document(self, doc: Document, embed):
+        embedding = embed(doc.text)
+        self.embedding_coll.add(
+            ids=[doc.id],
+            embeddings=[embedding],
+            metadatas=[doc.metadata],
+            documents=[doc.text]
+        )
+        for sentence in doc.iter_doc_sentences():
+            embedding = embed(sentence.text)
             self.embedding_coll.add(
-                ids=[data_id],
+                ids=[sentence.id],
                 embeddings=[embedding],
-                metadatas=[metadata],
-                documents=[text],
+                metadatas=[sentence.dump()],
+                documents=[sentence.text]
             )
 
-    def retrieve(self, embedding, limit=5):
+    def add_doc_file(self, doc_path: Path, ollama_client: OllamaClient, model):
+        # clear old data
+        rel_path = doc_path.relative_to(self.documents_dir)
+        self.embedding_coll.delete(where={"rel_path": str(rel_path)})
+
+        def embed(text):
+            return ollama_client.embed(model, text)
+
+        loader = DocumentLoader(self.documents_dir)
+        for doc in loader.iter_documents(doc_path):
+            self.add_document(doc, embed)
+
+    def retrieve_one(self, embedding, escaping=None):
+        if escaping is None:
+            escaping = []
+        where = None
+        if len(escaping) != 0:
+            where = {"doc_id": {"$nin": escaping}}
         results = self.embedding_coll.query(
             query_embeddings=[embedding],
-            n_results=limit
+            n_results=1,
+            where=where
         )
+        metadata = results["metadatas"][0]
+        if len(metadata) == 0:
+            return None
+        metadata = metadata[0]
+        data_id = results["ids"][0][0]
+        text = results["documents"][0][0]
+        dist = results["distances"][0][0]
+        doc_id = metadata["doc_id"]
+        if metadata["sentence_index"] != 0:
+            results = self.embedding_coll.get(
+                ids=[f'{doc_id}|0'],
+            )
+            data_id = results["ids"][0]
+            text = results["documents"][0]
+            metadata = results["metadatas"][0]
+        return doc_id, data_id, text, metadata, dist
+
+    def retrieve_by_sentence(self, embedding, limit=5, escaping=None):
+        if escaping is None:
+            escaping = []
+        for i in range(limit):
+            one = self.retrieve_one(embedding, escaping)
+            if one is None:
+                continue
+            doc_id, data_id, text, metadata, dist = one
+            yield Knowledge(doc_id, text, metadata, dist)
+            escaping.append(doc_id)
+
+    def retrieve_doc(self, embedding, limit=5):
+        results = self.embedding_coll.query(
+            query_embeddings=[embedding],
+            n_results=limit,
+            where={"sentence_index": 0}
+        )
+        escaping = []
         for data_id, text, metadata, dist in zip(
             results["ids"][0], results["documents"][0], results["metadatas"][0], results["distances"][0]
         ):
-            yield Knowledge(data_id, text, metadata, dist)
+            doc_id = metadata["doc_id"]
+            yield Knowledge(doc_id, text, metadata, dist)
+            escaping.append(doc_id)
+        return escaping
+
+    def retrieve(self, embedding, limit=5):
+        escaping = yield from self.retrieve_doc(embedding, limit)
+        yield from self.retrieve_by_sentence(embedding, limit, escaping)

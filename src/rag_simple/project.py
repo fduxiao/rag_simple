@@ -217,7 +217,7 @@ class RAGProject:
         with tqdm.tqdm(targets) as progress:
             for one in targets:
                 progress.set_postfix_str(str(one))
-                embedding_db.add_document(one, ollama_client, self.embedding_model)
+                embedding_db.add_doc_file(one, ollama_client, self.embedding_model)
                 progress.update()
             progress.set_postfix_str("done")
             progress.refresh()

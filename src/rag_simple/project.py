@@ -1,12 +1,10 @@
 import os
 from pathlib import Path
-import tomllib
-import tomli_w
 import tqdm
 import yaml
 
 from .kv_model import KVModel, Field
-from .ollama_client import OllamaClient, OllamaConfig
+from .flow_manager import FlowConfig, FlowManager
 from .embedding import EmbeddingDB, ChromaConfig
 from .prompt import Prompt
 
@@ -23,13 +21,13 @@ class PromptConfig(KVModel):
 
 
 class RAGProjectConfig(KVModel):
-    documents_dir: str = Field(default="documents")
-    embeddings_dir: str = Field(default="embeddings")
-    embedding_model: str = Field(default="mxbai-embed-large")
-    embedding_size: int = Field(default=1024)
-    generating_model: str = Field(default="deepseek-r1:7b")
-    chromadb_config: ChromaConfig = ChromaConfig.as_field()
+    class Project(KVModel):
+        documents_dir: str = Field(default="documents")
+        embeddings_dir: str = Field(default="embeddings")
 
+    project: Project = Project.as_field()
+    flow_config: FlowConfig = FlowConfig.as_field()
+    chromadb_config: ChromaConfig = ChromaConfig.as_field()
     prompt: PromptConfig = PromptConfig.as_field()
 
 
@@ -41,7 +39,7 @@ class RAGProject:
     def __init__(self, project_path: Path | str):
         self.project_path: Path = Path(project_path)
         self.config: RAGProjectConfig = RAGProjectConfig()
-        self.ollama_config: OllamaConfig = OllamaConfig()
+        self.flow_manager: FlowManager = FlowManager()
 
     @property
     def project_file(self):
@@ -52,19 +50,19 @@ class RAGProject:
         return self.project_path / self.OllamaConfigFilename
 
     def write_project_file(self):
-        with open(self.project_file, "wb") as file:
-            tomli_w.dump(self.config.dump(), file)
-        if not self.ollama_config_file.exists():
-            with open(self.ollama_config_file, "wb") as file:
-                tomli_w.dump(self.ollama_config.dump(), file)
+        self.config.to_toml(self.project_file)
+
+    @property
+    def agents_dir(self):
+        return self.project_path / 'agents_config'
+
+    def config_flow_manager(self):
+        self.flow_manager.set_config(self.config.flow_config, self.agents_dir)
+        self.flow_manager.load_agents()
 
     def load_project_file(self):
-        with open(self.project_file, 'rb') as file:
-            data = tomllib.load(file)
-            self.config.load(data)
-        with open(self.ollama_config_file, 'rb') as file:
-            data = tomllib.load(file)
-            self.ollama_config.load(data)
+        self.config.from_toml(self.project_file)
+        self.config_flow_manager()
 
     @classmethod
     def find_possible_project(cls, path: Path | str = None):
@@ -89,7 +87,7 @@ class RAGProject:
 
     @property
     def embeddings_dir(self) -> Path:
-        return self.parse_dir(self.config.embeddings_dir)
+        return self.parse_dir(self.config.project.embeddings_dir)
 
     @property
     def chroma_dir(self) -> Path:
@@ -101,11 +99,15 @@ class RAGProject:
 
     @property
     def documents_dir(self) -> Path:
-        return self.parse_dir(self.config.documents_dir)
+        return self.parse_dir(self.config.project.documents_dir)
 
     @property
     def project_gitignore(self) -> Path:
         return self.project_path / ".gitignore"
+
+    @property
+    def agent_gitignore(self) -> Path:
+        return self.agents_dir / ".gitignore"
 
     def init_project(self):
         if self.project_file.exists():
@@ -114,15 +116,19 @@ class RAGProject:
         self.write_project_file()
         if not self.project_gitignore.exists():
             with open(self.project_gitignore, "w") as file:
-                file.write(f"{self.config.embeddings_dir}/\n")
-                file.write(f"ollama.toml\n")
+                file.write(f"{self.embeddings_dir}/\n")
         self.embeddings_dir.mkdir(parents=True, exist_ok=True)
         self.chroma_dir.mkdir(parents=True, exist_ok=True)
         self.documents_dir.mkdir(parents=True, exist_ok=True)
+        self.agents_dir.mkdir(parents=True, exist_ok=True)
+        if not self.agent_gitignore.exists():
+            with open(self.agent_gitignore, "w") as file:
+                file.write(f"ollama.toml\n")
+        self.config_flow_manager()
 
     def new_project(self):
         if self.project_path.exists():
-            print(f"Existing project file {self.project_file}.")
+            print(f"Existing project file {self.project_path}.")
             return -1
         self.project_path.mkdir(parents=True)
         self.init_project()
@@ -161,7 +167,6 @@ class RAGProject:
             # TODO: write different format with respect to file extension
             yaml.safe_dump_all(data, file)
 
-
     # iterate all documents
     def iter_documents(self, base: Path = None):
         if base is None:
@@ -194,16 +199,7 @@ class RAGProject:
             if target_time is None or target_time < source_time:
                 yield one
 
-    @property
-    def embedding_model(self):
-        return self.config.embedding_model
-
-    @property
-    def generating_model(self):
-        return self.config.generating_model
-
     def build_db(self, dry_run, run_all):
-        ollama_client = OllamaClient(self.ollama_config)
         embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chroma_config)
 
         targets = list(self.iter_build_targets(run_all))
@@ -217,17 +213,15 @@ class RAGProject:
         with tqdm.tqdm(targets) as progress:
             for one in targets:
                 progress.set_postfix_str(str(one))
-                embedding_db.add_doc_file(one, ollama_client, self.embedding_model)
+                embedding_db.add_doc_file(one, self.flow_manager.embed)
                 progress.update()
             progress.set_postfix_str("done")
             progress.refresh()
         self.touch_embeddings_update()
 
     def retrieve(self, content, limit=5):
-        ollama_client = OllamaClient(self.ollama_config)
         embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chroma_config)
-
-        embedding = ollama_client.embed(self.embedding_model, content)
+        embedding = self.flow_manager.embed([content])
         for knowledge in embedding_db.retrieve(embedding, limit=limit):
             print(knowledge)
 
@@ -237,7 +231,6 @@ class RAGProject:
         self.embeddings_update_file.unlink(missing_ok=True)
 
     def ask(self, question, limit):
-        ollama_client = OllamaClient(self.ollama_config)
         embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chroma_config)
 
         retrieval_prefix = self.config.prompt.retrieval_prefix
@@ -246,12 +239,12 @@ class RAGProject:
 
         if question is not None:
             # make embedding
-            embedding = ollama_client.embed(self.embedding_model, question)
+            embedding = self.flow_manager.embed([question])
             for knowledge in embedding_db.retrieve(embedding, limit=limit):
                 print(f'{knowledge.metadata["role"]}: ', repr(knowledge.text.strip()))
                 prompt.add_knowledge(knowledge.set_prefix(retrieval_prefix))
             prompt.add_message(question, role="user")
-            for chunk in ollama_client.chat(self.generating_model, prompt):
+            for chunk in self.flow_manager.chat(prompt):
                 print(chunk['message']['content'], end='', flush=True)
             print()
             return
@@ -272,14 +265,14 @@ class RAGProject:
             if user_input.startswith("/retrieve "):
                 user_input = user_input[len('/retrieve '):]
                 # add knowledge
-                embedding = ollama_client.embed(self.embedding_model, user_input)
+                embedding = self.flow_manager.embed([user_input])
                 for knowledge in embedding_db.retrieve(embedding, limit=1):
                     if knowledge.id not in retrieved:
                         prompt.add_knowledge(knowledge.set_prefix(retrieval_prefix))
                         retrieved.add(knowledge.id)
                 continue
 
-            embedding = ollama_client.embed(self.embedding_model, user_input)
+            embedding = self.flow_manager.embed([user_input])
             for knowledge in embedding_db.retrieve(embedding, limit=limit):
                 if knowledge.id not in retrieved:
                     prompt.add_knowledge(knowledge)
@@ -288,7 +281,7 @@ class RAGProject:
 
             try:
                 response = ""
-                for chunk in ollama_client.chat(self.generating_model, prompt):
+                for chunk in self.flow_manager.chat(prompt):
                     content = chunk['message']['content']
                     response += content
                     print(content, end='', flush=True)

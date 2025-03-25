@@ -1,4 +1,8 @@
 from copy import deepcopy
+from pathlib import Path
+
+import tomllib
+import tomli_w
 
 
 class Field:
@@ -89,3 +93,23 @@ class KVModel:
         for key, value in data.items():
             field = self.fields[key]
             field.__set__(self, value)
+
+    def from_toml(self, path):
+        with open(path, 'rb') as file:
+            data = tomllib.load(file)
+            self.load(data)
+        return self
+
+    def from_config_file(self, path: str | Path, write_on_absence=False):
+        path = Path(path)
+        if not path.exists() and write_on_absence:
+            path.parent.mkdir(exist_ok=True, parents=True)
+            # TODO: check file extension
+            self.to_toml(path)
+        # TODO: check file extension
+        return self.from_toml(path)
+
+    def to_toml(self, path):
+        with open(path, 'wb') as file:
+            tomli_w.dump(self.data, file)
+        return self

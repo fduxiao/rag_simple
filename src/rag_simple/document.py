@@ -5,6 +5,7 @@ import yaml
 
 @dataclass
 class DocumentSentence:
+    rel_path: str
     doc_id: str
     sentence_index: int
     text: str
@@ -15,6 +16,7 @@ class DocumentSentence:
 
     def dump(self):
         return {
+            "rel_path": self.rel_path,
             "doc_id": self.doc_id,
             "sentence_index": self.sentence_index,
         }
@@ -22,13 +24,24 @@ class DocumentSentence:
 
 @dataclass
 class Document:
-    doc_id: str
+    rel_path: str
+    index: int
     text: str
     metadata: dict
 
     @property
+    def doc_id(self):
+        return f"{self.rel_path}|{self.index}"
+
+    @property
     def id(self):
         return f"{self.doc_id}|0"
+
+    def __post_init__(self):
+        self.metadata["doc_id"] = self.doc_id
+        self.metadata["rel_path"] = str(self.rel_path)
+        self.metadata["doc_index"] = self.index
+        self.metadata["sentence_index"] = 0
 
     def iter_doc_sentences(self):
         lines = self.text.strip().split("\n")
@@ -36,6 +49,7 @@ class Document:
             return
         for i, sentence in enumerate(lines):
             yield DocumentSentence(
+                self.rel_path,
                 self.doc_id,
                 i + 1,
                 sentence,
@@ -58,9 +72,4 @@ class DocumentLoader:
         for index, one in enumerate(self.load_obj_stream_from_file(path)):
             text = one["text"]
             metadata: dict = one.get("metadata", {})
-            doc_id =  f"{rel_path}|{index}"
-            metadata["doc_id"] = doc_id
-            metadata["rel_path"] = str(rel_path)
-            metadata["doc_index"] = index
-            metadata["sentence_index"] = 0
-            yield Document(doc_id, text, metadata)
+            yield Document(str(rel_path), index, text, metadata)

@@ -19,7 +19,6 @@ class Field:
     def __set_name__(self, owner, name):
         if self.name is None:
             self.name = name
-        owner.fields[self.name] = self
 
     def __get__(self, instance, owner):
         if instance is None:
@@ -60,12 +59,14 @@ class KVModel:
 
     def __init_subclass__(cls, /, **kwargs):
         super().__init_subclass__(**kwargs)
-        cls.fields = cls.fields.copy()
-        KVModel.fields = {}
+        cls.fields = {}
+        for key, field in cls.__dict__.items():
+            if isinstance(field, Field):
+                cls.fields[key] = field
 
     @classmethod
-    def as_field(cls):
-        return ModelField(cls)
+    def as_field(cls, name=None):
+        return ModelField(cls, name=name)
 
     @classmethod
     def make_default(cls):
@@ -74,11 +75,10 @@ class KVModel:
             result[key] = field.make_default()
         return result
 
-    def __init__(self, data=None, name=None):
+    def __init__(self, data=None):
         if data is None:
             data = self.make_default()
         self.data = data
-        self.name = name
 
     def __getitem__(self, item):
         return self.data["item"]

@@ -6,7 +6,7 @@ from .ollama import OllamaAgent
 def get_agent(name, config: LLMAgentConfig) -> LLMAgent:
     if name == 'ollama':
         return OllamaAgent(config)
-    raise NotImplemented(f"unknown agent {name}")
+    raise NotImplementedError(f"unknown agent {name}")
 
 
 class LLMAgentLoader:

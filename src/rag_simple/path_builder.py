@@ -52,7 +52,7 @@ class PathBuilder:
         self.agents_dir.mkdir(parents=True, exist_ok=True)
         if not self.agent_gitignore.exists():
             with open(self.agent_gitignore, "w") as file:
-                file.write(f"ollama.toml\n")
+                file.write("ollama.toml\n")
 
     # iterate all documents
     def iter_documents(self, base: Path = None):

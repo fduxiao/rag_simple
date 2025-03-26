@@ -1,12 +1,16 @@
 import os
 from pathlib import Path
+
 import tqdm
 import yaml
 
 from .kv_model import KVModel, Field
-from .flow_manager import FlowConfig, FlowManager, PathBuilder, BasicProjectConfig
-from .embedding import EmbeddingDB, ChromaConfig
+from .flow_manager import FlowManager
+from .llm_agent import LLM, LLMConfig
+from .embedding import EmbeddingDB
+from .path_builder import PathBuilder
 from .prompt import Prompt
+from .vector_db import VectorDBConfig, load_vector_db
 
 
 class PromptConfig(KVModel):
@@ -21,78 +25,72 @@ class PromptConfig(KVModel):
 
 
 class RAGProjectConfig(KVModel):
-    project: BasicProjectConfig = BasicProjectConfig.as_field()
-    flow_config: FlowConfig = FlowConfig.as_field()
-    chromadb_config: ChromaConfig = ChromaConfig.as_field()
+    llm: LLMConfig = LLMConfig.as_field()
+    vector_db: VectorDBConfig = VectorDBConfig.as_field()
     prompt: PromptConfig = PromptConfig.as_field()
 
 
 class RAGProject:
-    Filename = "rag_project.toml"
     OllamaConfigFilename = "ollama.toml"
     Environ = "RAG_PROJECT"
 
-    def __init__(self, project_path: Path | str):
+    def __init__(self, project_path: Path | str, config: RAGProjectConfig = None):
         self.project_path: Path = Path(project_path)
         self.paths = PathBuilder(self.project_path)
-        self.config: RAGProjectConfig = RAGProjectConfig()
-        self.flow_manager: FlowManager = FlowManager(self.paths)
+        if config is None:
+            self.config: RAGProjectConfig = RAGProjectConfig()
+            self.load_project_file()
+        else:
+            self.config: RAGProjectConfig = config
+        self.llm = LLM(self.config.llm, self.paths.agents_dir)
+        self.vector_db = load_vector_db(self.config.vector_db, self.paths.embeddings_dir)
+        self.flow_manager: FlowManager = FlowManager(
+            llm=self.llm,
+            vector_db=self.vector_db
+        )
 
     def write_project_file(self):
         self.config.to_toml(self.paths.project_file)
 
-    def set_config(self):
-        self.paths.set_basic_config(self.config.project)
-        self.flow_manager.set_config(self.config.flow_config)
-
-    def config_flow_manager(self):
-        self.flow_manager.load_agents()
-
     def load_project_file(self):
         self.config.from_toml(self.paths.project_file)
-        self.set_config()
-        self.config_flow_manager()
 
     @classmethod
     def find_possible_project(cls, path: Path | str = None):
         if path is None:
             path = Path(os.environ.get(cls.Environ, ".")).absolute()
         while True:
-            proj = cls(path)
-            if proj.paths.project_file.exists():
-                proj.load_project_file()
-                return proj
+            proj_file_path = path / PathBuilder.ProjectConfigFilename
+            if proj_file_path.exists():
+                return cls(path)
             # is the root
             if path.parent == path:
                 break
             path = path.parent
         return None
 
-    @property
-    def chroma_dir(self) -> Path:
-        return self.paths.embeddings_dir / "chroma"
-
-    @property
-    def chroma_config(self) -> ChromaConfig:
-        return self.config.chromadb_config
-
-    def init_project(self):
-        if self.paths.project_file.exists():
-            print(f"Existing project file {self.paths.project_file}.")
-            return -1
+    @classmethod
+    def init_project(cls, project_path: Path):
+        project_path = Path(project_path)
+        paths = PathBuilder(project_path)
+        if paths.project_file.exists():
+            return None
         # prepare files
-        self.write_project_file()
-        self.set_config()
-        self.paths.init()
-        self.chroma_dir.mkdir(parents=True, exist_ok=True)
-        self.config_flow_manager()
+        paths.init()
+        config = RAGProjectConfig()
+        config.to_toml(paths.project_file)
+        # make the instance
+        inst = cls(project_path)
+        inst.write_project_file()
+        return inst
 
-    def new_project(self):
-        if self.project_path.exists():
-            print(f"Existing project file {self.project_path}.")
-            return -1
-        self.project_path.mkdir(parents=True)
-        self.init_project()
+    @classmethod
+    def new(cls, project_path: Path):
+        project_path = Path(project_path)
+        if project_path.exists():
+            return None
+        project_path.mkdir(parents=True)
+        return cls.init_project(project_path)
 
     @staticmethod
     def new_doc(path: Path | str, force=False):
@@ -129,7 +127,7 @@ class RAGProject:
             yaml.safe_dump_all(data, file)
 
     def build_db(self, dry_run, run_all):
-        embedding_db = EmbeddingDB(self.paths.documents_dir, self.chroma_dir, self.chroma_config)
+        embedding_db = EmbeddingDB(self.paths.documents_dir, self.vector_db)
 
         targets = list(self.paths.iter_build_targets(run_all))
         if len(targets) == 0:
@@ -149,18 +147,18 @@ class RAGProject:
         self.paths.touch_embeddings_update()
 
     def retrieve(self, content, limit=5):
-        embedding_db = EmbeddingDB(self.paths.documents_dir, self.chroma_dir, self.chroma_config)
+        embedding_db = EmbeddingDB(self.paths.documents_dir, self.vector_db)
         embedding = self.flow_manager.embed([content])
         for knowledge in embedding_db.retrieve(embedding, limit=limit):
             print(knowledge)
 
     def clear(self):
-        embedding_db = EmbeddingDB(self.paths.documents_dir, self.chroma_dir, self.chroma_config)
+        embedding_db = EmbeddingDB(self.paths.documents_dir, self.vector_db)
         embedding_db.clear()
         self.paths.embeddings_update_file.unlink(missing_ok=True)
 
     def ask(self, question, limit):
-        embedding_db = EmbeddingDB(self.paths.documents_dir, self.chroma_dir, self.chroma_config)
+        embedding_db = EmbeddingDB(self.paths.documents_dir, self.vector_db)
 
         retrieval_prefix = self.config.prompt.retrieval_prefix
         prompt = Prompt()

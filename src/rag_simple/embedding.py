@@ -1,36 +1,16 @@
 from pathlib import Path
-import chromadb
 
 from .document import DocumentLoader, Document
 from .prompt import Knowledge
-from .kv_model import KVModel, Field
-
-
-class HNSWConfig(KVModel):
-    space: str = Field(default="l2")
-    construction_ef: int = Field(default=100)
-    search_ef: int = Field(default=100)
-    M: int = Field(default=16)
-
-
-class ChromaConfig(KVModel):
-    db_name: str = Field(default="default_database")
-    hnsw: HNSWConfig = HNSWConfig.as_field()
+from .vector_db import ChromeVectorDB
 
 
 class EmbeddingDB:
-    def __init__(self, documents_dir: Path, chroma_path: Path, chrome_config: ChromaConfig):
+    def __init__(self, documents_dir: Path, vector_db: ChromeVectorDB):
         self.documents_dir = documents_dir
-        self.chroma = chromadb.PersistentClient(str(chroma_path), database=chrome_config.db_name)
-        self.embedding_coll = self.chroma.get_or_create_collection(
-            "chunks",
-            metadata={
-                "hnsw:space": chrome_config.hnsw.space,
-                "hnsw:construction_ef": chrome_config.hnsw.construction_ef,
-                "hnsw:search_ef": chrome_config.hnsw.search_ef,
-                "hnsw:M": chrome_config.hnsw.M,
-            }
-        )
+        vector_db.connect()
+        self.chroma = vector_db.chroma
+        self.embedding_coll = vector_db.embedding_coll
 
     def clear(self):
         self.chroma.delete_collection("chunks")

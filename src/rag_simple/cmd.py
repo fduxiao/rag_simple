@@ -3,13 +3,17 @@ from .project import RAGProject
 
 
 def cmd_new(args):
-    project = RAGProject(args.path)
-    return project.new_project()
+    project = RAGProject.new(args.path)
+    if project is None:
+        print(f"Existing project {args.path}.")
+        return -1
 
 
 def cmd_init(args):
-    project = RAGProject(args.path)
-    return project.init_project()
+    proj = RAGProject.init_project(args.path)
+    if proj is None:
+        print(f"Project {args.path} has been initialized.")
+        return -1
 
 
 def cmd_build(args):

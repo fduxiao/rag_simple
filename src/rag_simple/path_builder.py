@@ -2,23 +2,12 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 
-from ..kv_model import KVModel, Field
-
-
-class BasicProjectConfig(KVModel):
-    documents_dir: str = Field(default="documents")
-    embeddings_dir: str = Field(default="embeddings")
-
 
 @dataclass
 class PathBuilder:
     ProjectConfigFilename = "rag_project.toml"
 
     project_path: Path
-    basic_config: BasicProjectConfig = None
-
-    def set_basic_config(self, config: BasicProjectConfig):
-        self.basic_config = config
 
     @property
     def project_file(self):
@@ -36,11 +25,11 @@ class PathBuilder:
 
     @property
     def embeddings_dir(self) -> Path:
-        return self.parse_dir(self.basic_config.embeddings_dir)
+        return self.project_path / "embeddings"
 
     @property
     def documents_dir(self) -> Path:
-        return self.parse_dir(self.basic_config.documents_dir)
+        return self.project_path / "documents"
 
     @property
     def embeddings_update_file(self) -> Path:

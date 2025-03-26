@@ -4,7 +4,7 @@ import tqdm
 import yaml
 
 from .kv_model import KVModel, Field
-from .flow_manager import FlowConfig, FlowManager
+from .flow_manager import FlowConfig, FlowManager, PathBuilder, BasicProjectConfig
 from .embedding import EmbeddingDB, ChromaConfig
 from .prompt import Prompt
 
@@ -21,11 +21,7 @@ class PromptConfig(KVModel):
 
 
 class RAGProjectConfig(KVModel):
-    class Project(KVModel):
-        documents_dir: str = Field(default="documents")
-        embeddings_dir: str = Field(default="embeddings")
-
-    project: Project = Project.as_field()
+    project: BasicProjectConfig = BasicProjectConfig.as_field()
     flow_config: FlowConfig = FlowConfig.as_field()
     chromadb_config: ChromaConfig = ChromaConfig.as_field()
     prompt: PromptConfig = PromptConfig.as_field()
@@ -38,30 +34,23 @@ class RAGProject:
 
     def __init__(self, project_path: Path | str):
         self.project_path: Path = Path(project_path)
+        self.paths = PathBuilder(self.project_path)
         self.config: RAGProjectConfig = RAGProjectConfig()
-        self.flow_manager: FlowManager = FlowManager()
-
-    @property
-    def project_file(self):
-        return self.project_path / self.Filename
-
-    @property
-    def ollama_config_file(self):
-        return self.project_path / self.OllamaConfigFilename
+        self.flow_manager: FlowManager = FlowManager(self.paths)
 
     def write_project_file(self):
-        self.config.to_toml(self.project_file)
+        self.config.to_toml(self.paths.project_file)
 
-    @property
-    def agents_dir(self):
-        return self.project_path / 'agents_config'
+    def set_config(self):
+        self.paths.set_basic_config(self.config.project)
+        self.flow_manager.set_config(self.config.flow_config)
 
     def config_flow_manager(self):
-        self.flow_manager.set_config(self.config.flow_config, self.agents_dir)
         self.flow_manager.load_agents()
 
     def load_project_file(self):
-        self.config.from_toml(self.project_file)
+        self.config.from_toml(self.paths.project_file)
+        self.set_config()
         self.config_flow_manager()
 
     @classmethod
@@ -70,7 +59,7 @@ class RAGProject:
             path = Path(os.environ.get(cls.Environ, ".")).absolute()
         while True:
             proj = cls(path)
-            if proj.project_file.exists():
+            if proj.paths.project_file.exists():
                 proj.load_project_file()
                 return proj
             # is the root
@@ -79,51 +68,23 @@ class RAGProject:
             path = path.parent
         return None
 
-    def parse_dir(self, path) -> Path:
-        path = Path(path)
-        if path.is_absolute():
-            return path
-        return self.project_path / path
-
-    @property
-    def embeddings_dir(self) -> Path:
-        return self.parse_dir(self.config.project.embeddings_dir)
-
     @property
     def chroma_dir(self) -> Path:
-        return self.embeddings_dir / "chroma"
+        return self.paths.embeddings_dir / "chroma"
 
     @property
     def chroma_config(self) -> ChromaConfig:
         return self.config.chromadb_config
 
-    @property
-    def documents_dir(self) -> Path:
-        return self.parse_dir(self.config.project.documents_dir)
-
-    @property
-    def project_gitignore(self) -> Path:
-        return self.project_path / ".gitignore"
-
-    @property
-    def agent_gitignore(self) -> Path:
-        return self.agents_dir / ".gitignore"
-
     def init_project(self):
-        if self.project_file.exists():
-            print(f"Existing project file {self.project_file}.")
+        if self.paths.project_file.exists():
+            print(f"Existing project file {self.paths.project_file}.")
             return -1
+        # prepare files
         self.write_project_file()
-        if not self.project_gitignore.exists():
-            with open(self.project_gitignore, "w") as file:
-                file.write(f"{self.embeddings_dir}/\n")
-        self.embeddings_dir.mkdir(parents=True, exist_ok=True)
+        self.set_config()
+        self.paths.init()
         self.chroma_dir.mkdir(parents=True, exist_ok=True)
-        self.documents_dir.mkdir(parents=True, exist_ok=True)
-        self.agents_dir.mkdir(parents=True, exist_ok=True)
-        if not self.agent_gitignore.exists():
-            with open(self.agent_gitignore, "w") as file:
-                file.write(f"ollama.toml\n")
         self.config_flow_manager()
 
     def new_project(self):
@@ -167,42 +128,10 @@ class RAGProject:
             # TODO: write different format with respect to file extension
             yaml.safe_dump_all(data, file)
 
-    # iterate all documents
-    def iter_documents(self, base: Path = None):
-        if base is None:
-            base = self.documents_dir
-        one: Path
-        for one in base.iterdir():
-            if one.is_file():
-                if one.suffix in [".yaml", ".yml", ".toml", ".txt"]:
-                    yield one
-            elif one.is_dir():
-                self.iter_documents(one)
-
-    @property
-    def embeddings_update_file(self) -> Path:
-        return self.embeddings_dir / "update.time"
-
-    def touch_embeddings_update(self):
-        self.embeddings_update_file.touch()
-
-    # find outdated documents
-    def iter_build_targets(self, run_all):
-        target_time = None
-        if self.embeddings_update_file.exists():
-            target_time = os.path.getmtime(self.embeddings_update_file)
-        for one in self.iter_documents():
-            if run_all:
-                yield one
-                continue
-            source_time = os.path.getmtime(one)
-            if target_time is None or target_time < source_time:
-                yield one
-
     def build_db(self, dry_run, run_all):
-        embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chroma_config)
+        embedding_db = EmbeddingDB(self.paths.documents_dir, self.chroma_dir, self.chroma_config)
 
-        targets = list(self.iter_build_targets(run_all))
+        targets = list(self.paths.iter_build_targets(run_all))
         if len(targets) == 0:
             return
         if dry_run:
@@ -217,21 +146,21 @@ class RAGProject:
                 progress.update()
             progress.set_postfix_str("done")
             progress.refresh()
-        self.touch_embeddings_update()
+        self.paths.touch_embeddings_update()
 
     def retrieve(self, content, limit=5):
-        embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chroma_config)
+        embedding_db = EmbeddingDB(self.paths.documents_dir, self.chroma_dir, self.chroma_config)
         embedding = self.flow_manager.embed([content])
         for knowledge in embedding_db.retrieve(embedding, limit=limit):
             print(knowledge)
 
     def clear(self):
-        embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chroma_config)
+        embedding_db = EmbeddingDB(self.paths.documents_dir, self.chroma_dir, self.chroma_config)
         embedding_db.clear()
-        self.embeddings_update_file.unlink(missing_ok=True)
+        self.paths.embeddings_update_file.unlink(missing_ok=True)
 
     def ask(self, question, limit):
-        embedding_db = EmbeddingDB(self.documents_dir, self.chroma_dir, self.chroma_config)
+        embedding_db = EmbeddingDB(self.paths.documents_dir, self.chroma_dir, self.chroma_config)
 
         retrieval_prefix = self.config.prompt.retrieval_prefix
         prompt = Prompt()

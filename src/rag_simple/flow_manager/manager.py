@@ -4,6 +4,8 @@ from typing import Optional
 from ..llm_agent import LLMAgent, LLMAgentLoader
 from ..kv_model import KVModel, Field
 
+from .path_builder import PathBuilder
+
 
 class EmbedConfig(KVModel):
     agent: str = Field(default="ollama")
@@ -22,17 +24,19 @@ class FlowConfig(KVModel):
 
 
 class FlowManager:
-    def __init__(self, agent_loader_class=LLMAgentLoader):
+    def __init__(self, path_builder: PathBuilder, agent_loader_class=LLMAgentLoader):
         self.config: Optional[FlowConfig] = None
+        self.path_builder: PathBuilder = path_builder
+
         self.agent_loader_class = agent_loader_class
         self.agent_loader: Optional[LLMAgentLoader] = None
         self.embedding_agent: Optional[LLMAgent] = None
         self.chatting_agent: Optional[LLMAgent] = None
         self.is_setup = False
 
-    def set_config(self, config: FlowConfig, agents_dir: Path):
+    def set_config(self, config: FlowConfig):
         self.config = config
-        self.agent_loader = self.agent_loader_class(agents_dir)
+        self.agent_loader = self.agent_loader_class(self.path_builder.agents_dir)
 
     def load_agents(self):
         self.embedding_agent = self.agent_loader.load_agent_by_name(self.config.embed.agent)

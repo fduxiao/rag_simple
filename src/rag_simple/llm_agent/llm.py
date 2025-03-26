@@ -1,7 +1,9 @@
 from pathlib import Path
+from typing import Iterable
 
 from ..kv_model import KVModel, Field
 from .loader import LLMAgentLoader
+from ..prompt import Prompt
 
 
 class EmbedConfig(KVModel):
@@ -30,7 +32,7 @@ class BaseLLM:
     def embed(self, input_text: list[str]) -> list[list[float]]:
         pass
 
-    def chat(self, messages):
+    def chat(self, messages: Prompt) -> Iterable[str]:
         pass
 
 

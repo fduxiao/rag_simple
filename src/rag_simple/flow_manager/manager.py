@@ -3,7 +3,7 @@ from pathlib import Path
 
 from ..document import Document
 from ..llm_agent import BaseLLM
-from ..prompt import Knowledge
+from ..prompt import Knowledge, Prompt
 from ..vector_db import BaseVectorDB
 
 
@@ -36,7 +36,7 @@ class FlowManager:
         self.setup()
         return self.llm.embed(input_text)
 
-    def chat(self, messages):
+    def chat(self, messages: Prompt):
         self.setup()
         return self.llm.chat(messages)
 

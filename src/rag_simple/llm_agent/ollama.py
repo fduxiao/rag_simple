@@ -1,4 +1,8 @@
+from typing import Iterable
+
 import ollama
+
+from ..prompt import Prompt
 from .base import LLMAgent, LLMAgentConfig
 
 
@@ -15,12 +19,12 @@ class OllamaAgent(LLMAgent):
         embeddings = resp["embeddings"]
         return embeddings
 
-    def chat(self, model, messages):
+    def chat(self, model, messages: Prompt) -> Iterable[str]:
         stream = self.client.chat(
             model=model,
-            messages=messages,
+            messages=messages.messages,
             stream=True,
         )
 
         for chunk in stream:
-            yield chunk
+            yield chunk['message']['content']

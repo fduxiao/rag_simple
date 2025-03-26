@@ -168,8 +168,8 @@ class RAGProject:
                 print(f'{knowledge.metadata["role"]}: ', repr(knowledge.text.strip()))
                 prompt.add_knowledge(knowledge.set_prefix(retrieval_prefix))
             prompt.add_message(question, role="user")
-            for chunk in self.flow_manager.chat(prompt):
-                print(chunk['message']['content'], end='', flush=True)
+            for content in self.flow_manager.chat(prompt):
+                print(content, end='', flush=True)
             print()
             return
 
@@ -203,8 +203,7 @@ class RAGProject:
 
             try:
                 response = ""
-                for chunk in self.flow_manager.chat(prompt):
-                    content = chunk['message']['content']
+                for content in self.flow_manager.chat(prompt):
                     response += content
                     print(content, end='', flush=True)
                 print()

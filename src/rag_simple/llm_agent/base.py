@@ -1,4 +1,7 @@
-from rag_simple.kv_model import KVModel, Field
+from typing import Iterable
+
+from ..kv_model import KVModel, Field
+from ..prompt import Prompt
 
 
 class LLMAgentConfig(KVModel, Field):
@@ -20,5 +23,5 @@ class LLMAgent:
     def embed(self, model, texts: list[str]) -> list[list[float]]:
         pass
 
-    def chat(self, model, messages):
+    def chat(self, model, messages: Prompt) -> Iterable[str]:
         pass

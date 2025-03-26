@@ -5,9 +5,11 @@ from .chroma_db import ChromeVectorDB
 
 
 __all__ = [
-    "BaseVectorDB", "VectorDB", "VectorDBConfig",
+    "BaseVectorDB",
+    "VectorDB",
+    "VectorDBConfig",
     "ChromeVectorDB",
-    "load_vector_db"
+    "load_vector_db",
 ]
 
 

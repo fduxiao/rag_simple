@@ -95,7 +95,7 @@ class KVModel:
             field.__set__(self, value)
 
     def from_toml(self, path):
-        with open(path, 'rb') as file:
+        with open(path, "rb") as file:
             data = tomllib.load(file)
             self.load(data)
         return self
@@ -110,6 +110,6 @@ class KVModel:
         return self.from_toml(path)
 
     def to_toml(self, path):
-        with open(path, 'wb') as file:
+        with open(path, "wb") as file:
             tomli_w.dump(self.data, file)
         return self

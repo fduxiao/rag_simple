@@ -37,13 +37,19 @@ class BaseLLM:
 
 
 class LLM(BaseLLM):
-    def __init__(self, config: LLMConfig, agents_dir: Path, loader_class=LLMAgentLoader):
+    def __init__(
+        self, config: LLMConfig, agents_dir: Path, loader_class=LLMAgentLoader
+    ):
         self.config = config
         self.agents_dir = agents_dir
         self.agent_loader = loader_class(agents_dir)
 
-        self.embedding_agent = self.agent_loader.load_agent_by_name(self.config.embed.agent)
-        self.chatting_agent = self.agent_loader.load_agent_by_name(self.config.chat.agent)
+        self.embedding_agent = self.agent_loader.load_agent_by_name(
+            self.config.embed.agent
+        )
+        self.chatting_agent = self.agent_loader.load_agent_by_name(
+            self.config.chat.agent
+        )
 
     def connect(self):
         self.agent_loader.connect()

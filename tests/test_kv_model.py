@@ -18,13 +18,15 @@ class TestKVModel(unittest.TestCase):
         self.assertDictEqual(KVModel.fields, {})
         b = B()
         a = b.a
-        self.assertDictEqual(b.dump(), {'a': {'a1': 3, 'a2': 4}, 'b1': 'b1', 'b2': 'b2'})
-        a.load({
-            "a2": 9
-        })
+        self.assertDictEqual(
+            b.dump(), {"a": {"a1": 3, "a2": 4}, "b1": "b1", "b2": "b2"}
+        )
+        a.load({"a2": 9})
         self.assertEqual(b.a.a2, 9)
-        self.assertDictEqual(b.dump(), {'a': {'a1': 3, 'a2': 9}, 'b1': 'b1', 'b2': 'b2'})
+        self.assertDictEqual(
+            b.dump(), {"a": {"a1": 3, "a2": 9}, "b1": "b1", "b2": "b2"}
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

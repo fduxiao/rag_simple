@@ -14,10 +14,7 @@ class Knowledge:
         return self
 
     def to_prompt(self):
-        return {
-            "role": self.metadata.get("role", "system"),
-            "content": self.text
-        }
+        return {"role": self.metadata.get("role", "system"), "content": self.text}
 
 
 class Prompt:
@@ -25,10 +22,7 @@ class Prompt:
         self.messages = []
 
     def add_message(self, content, role="user"):
-        self.messages.append({
-            "role": role,
-            "content": content
-        })
+        self.messages.append({"role": role, "content": content})
         return self
 
     def add_knowledge(self, knowledge: Knowledge):

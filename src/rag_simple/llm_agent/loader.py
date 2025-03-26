@@ -4,7 +4,7 @@ from .ollama import OllamaAgent
 
 
 def get_agent(name, config: LLMAgentConfig) -> LLMAgent:
-    if name == 'ollama':
+    if name == "ollama":
         return OllamaAgent(config)
     raise NotImplementedError(f"unknown agent {name}")
 
@@ -17,7 +17,9 @@ class LLMAgentLoader:
     def load_agent_by_name(self, name):
         agent = self.loaded_agents.get(name, None)
         if agent is None:
-            config = LLMAgentConfig().from_config_file(self.agents_dir / f'{name}.toml', write_on_absence=True)
+            config = LLMAgentConfig().from_config_file(
+                self.agents_dir / f"{name}.toml", write_on_absence=True
+            )
             agent = get_agent(name, config)
         return agent
 

@@ -9,10 +9,7 @@ from .base import LLMAgent, LLMAgentConfig
 class OllamaAgent(LLMAgent):
     def __init__(self, config: LLMAgentConfig):
         super().__init__(config)
-        self.client = ollama.Client(
-            host=config.api_url,
-            headers=config.headers
-        )
+        self.client = ollama.Client(host=config.api_url, headers=config.headers)
 
     def embed(self, model, texts: list[str]) -> list[list[float]]:
         resp = self.client.embed(model=model, input=texts)
@@ -27,4 +24,4 @@ class OllamaAgent(LLMAgent):
         )
 
         for chunk in stream:
-            yield chunk['message']['content']
+            yield chunk["message"]["content"]

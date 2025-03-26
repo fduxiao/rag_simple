@@ -1,6 +1,4 @@
 from .manager import FlowManager
 
 
-__all__ = [
-    "FlowManager"
-]
+__all__ = ["FlowManager"]

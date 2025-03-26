@@ -15,13 +15,16 @@ from .vector_db import VectorDBConfig, load_vector_db
 
 class PromptConfig(KVModel):
     retrieval_prefix: str = Field(default="Response based on: ")
-    preset: list[dict] = Field(default_factory=lambda: [
-        {"role": "system", "content": "Response concisely."},
-        {"role": "system", "content":
-            "You will be given some references, related or not related to user input.\n"
-            "Judge whether they are related or not, and then response based on those references."
-         },
-    ])
+    preset: list[dict] = Field(
+        default_factory=lambda: [
+            {"role": "system", "content": "Response concisely."},
+            {
+                "role": "system",
+                "content": "You will be given some references, related or not related to user input.\n"
+                "Judge whether they are related or not, and then response based on those references.",
+            },
+        ]
+    )
 
 
 class RAGProjectConfig(KVModel):
@@ -43,10 +46,11 @@ class RAGProject:
         else:
             self.config: RAGProjectConfig = config
         self.llm = LLM(self.config.llm, self.paths.agents_dir)
-        self.vector_db = load_vector_db(self.config.vector_db, self.paths.embeddings_dir)
+        self.vector_db = load_vector_db(
+            self.config.vector_db, self.paths.embeddings_dir
+        )
         self.flow_manager: FlowManager = FlowManager(
-            llm=self.llm,
-            vector_db=self.vector_db
+            llm=self.llm, vector_db=self.vector_db
         )
 
     def write_project_file(self):
@@ -109,16 +113,16 @@ class RAGProject:
         with open(path, "w") as file:
             data = [
                 {
-                "metadata": {
-                    "role": "system",
-                    "desc": "put some desired meta data"
-                },
-                "text": "Example\ntext:\nThis will be held by `system`.\n",
+                    "metadata": {
+                        "role": "system",
+                        "desc": "put some desired meta data",
+                    },
+                    "text": "Example\ntext:\nThis will be held by `system`.\n",
                 },
                 {
                     "metadata": {
                         "role": "system",
-                        "desc": "put some desired meta data"
+                        "desc": "put some desired meta data",
                     },
                     "text": "Another\ndocument.\nNote that YAML uses `--- !tag` to separate documents",
                 },
@@ -165,11 +169,11 @@ class RAGProject:
         if question is not None:
             # make embedding
             for knowledge in self.flow_manager.retrieve_text(question, limit=limit):
-                print(f'{knowledge.metadata["role"]}: ', repr(knowledge.text.strip()))
+                print(f"{knowledge.metadata['role']}: ", repr(knowledge.text.strip()))
                 prompt.add_knowledge(knowledge.set_prefix(retrieval_prefix))
             prompt.add_message(question, role="user")
             for content in self.flow_manager.chat(prompt):
-                print(content, end='', flush=True)
+                print(content, end="", flush=True)
             print()
             return
 
@@ -187,7 +191,7 @@ class RAGProject:
 
             # parse user input
             if user_input.startswith("/retrieve "):
-                user_input = user_input[len('/retrieve '):]
+                user_input = user_input[len("/retrieve ") :]
                 # add knowledge
                 for knowledge in self.flow_manager.retrieve_text(user_input, limit=1):
                     if knowledge.id not in retrieved:
@@ -205,7 +209,7 @@ class RAGProject:
                 response = ""
                 for content in self.flow_manager.chat(prompt):
                     response += content
-                    print(content, end='', flush=True)
+                    print(content, end="", flush=True)
                 print()
             except KeyboardInterrupt:
                 continue

@@ -37,7 +37,7 @@ class PathBuilder:
 
     @property
     def agents_dir(self):
-        return self.project_path / 'agents'
+        return self.project_path / "agents"
 
     @property
     def agent_gitignore(self) -> Path:

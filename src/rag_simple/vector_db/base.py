@@ -57,11 +57,7 @@ class VectorDBSearch(BaseVectorDB):
         where = None
         if len(escaping) != 0:
             where = {"doc_id": {"$nin": escaping}}
-        results = self.query_embeddings(
-            embeddings=embedding,
-            n_results=1,
-            where=where
-        )
+        results = self.query_embeddings(embeddings=embedding, n_results=1, where=where)
         metadata = results.metadatas[0]
         if len(metadata) == 0:
             return None
@@ -71,7 +67,7 @@ class VectorDBSearch(BaseVectorDB):
         dist = results.distances[0][0]
         doc_id = metadata["doc_id"]
         if metadata["sentence_index"] != 0:
-            results = self.find_by_ids([f'{doc_id}|0'])
+            results = self.find_by_ids([f"{doc_id}|0"])
             data_id = results.ids[0]
             text = results.texts[0]
             metadata = results.metadatas[0]
@@ -90,9 +86,7 @@ class VectorDBSearch(BaseVectorDB):
 
     def retrieve_doc(self, embedding, limit=5):
         results = self.query_embeddings(
-            embeddings=embedding,
-            n_results=limit,
-            where={"sentence_index": 0}
+            embeddings=embedding, n_results=limit, where={"sentence_index": 0}
         )
         escaping = []
         for data_id, text, metadata, dist in zip(

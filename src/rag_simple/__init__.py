@@ -3,8 +3,4 @@ from .project import RAGProject
 from .cmd import main
 
 
-__all__ = [
-    "KVModel", "Field", "ModelField",
-    "RAGProject",
-    "main"
-]
+__all__ = ["KVModel", "Field", "ModelField", "RAGProject", "main"]

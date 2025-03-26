@@ -12,8 +12,10 @@ class ChromeVectorDB(VectorDB):
     embedding_coll: chromadb.Collection
 
     def connect(self):
-        chroma_path = self.embeddings_dir / 'chroma'
-        self.chroma = chromadb.PersistentClient(str(chroma_path), database=self.config.db_name)
+        chroma_path = self.embeddings_dir / "chroma"
+        self.chroma = chromadb.PersistentClient(
+            str(chroma_path), database=self.config.db_name
+        )
         self.embedding_coll = self.chroma.get_or_create_collection(
             "chunks",
             metadata={
@@ -21,7 +23,7 @@ class ChromeVectorDB(VectorDB):
                 "hnsw:construction_ef": self.config.hnsw.construction_ef,
                 "hnsw:search_ef": self.config.hnsw.search_ef,
                 "hnsw:M": self.config.hnsw.M,
-            }
+            },
         )
 
     def clear(self):
@@ -37,7 +39,7 @@ class ChromeVectorDB(VectorDB):
                 ids=[doc.id],
                 embeddings=embedding,
                 metadatas=[doc.metadata],
-                documents=[doc.text]
+                documents=[doc.text],
             )
             for sentence in doc.iter_doc_sentences():
                 embedding = embed([sentence.text])
@@ -45,14 +47,12 @@ class ChromeVectorDB(VectorDB):
                     ids=[sentence.id],
                     embeddings=embedding,
                     metadatas=[sentence.dump()],
-                    documents=[sentence.text]
+                    documents=[sentence.text],
                 )
 
     def query_embeddings(self, embeddings, where, n_results) -> QueryResult:
         result = self.embedding_coll.query(
-            query_embeddings=embeddings,
-            n_results=n_results,
-            where=where
+            query_embeddings=embeddings, n_results=n_results, where=where
         )
         return QueryResult(
             result["ids"],

@@ -38,7 +38,8 @@ class Router:
 class Argument:
     def __init__(self, *name_or_flags, nargs=None, default=None, **kwargs):
         self.name_or_flags = name_or_flags
-        kwargs["nargs"] = nargs
+        if nargs is not None:
+            kwargs["nargs"] = nargs
         kwargs["default"] = default
         self.kwargs = kwargs
 
@@ -113,18 +114,40 @@ class ChatResponder:
         result.print_help()
         print()
 
-    @router.command("chat", desc="Chat with AI.")
-    def chat(self, text: list[str], limit=None, retrieve=True):
+    @router.command("chat", desc="Chat with AI.").add_arguments(
+        Argument("text", nargs="+"),
+        Argument("--no-retrieval", "--nr", action="store_true", default=False),
+        Argument("--retrieve", "-r", default=None, type=int, help="limit of retrieved data"),
+    )
+    def chat(self, text: list[str], retrieve=None, no_retrieval=False):
         text = " ".join(text)
-        if limit is None:
-            limit = self.default_limit
-        if retrieve:
-            self.chatbot.retrieve(text, limit=limit).drain()
+        if retrieve is None:
+            retrieve = self.default_limit
+        if not no_retrieval:
+            self.chatbot.retrieve(text, limit=retrieve).drain()
         self.chatbot.chat(text).print()
+
+    @router.command("show", desc="Show chat information.").add_arguments(
+        Argument("target", help="what you want to show")
+    )
+    def show(self, target):
+        if target == "system":
+            for one in self.chatbot.messages:
+                if one["role"] == "system":
+                    print(f"system:", repr(one['content']))
+            return
+
+    @router.command("retrieve", desc="Retrieve knowledge.").add_arguments(
+        Argument("--limit", "-n", default=1, type=int),
+        Argument("text", help="text", nargs='+'),
+    )
+    def retrieve(self, text: list[str], limit):
+        text = " ".join(text)
+        self.chatbot.retrieve(text, limit=limit).drain()
 
     def respond_to(self, user_input: str) -> bool:
         if not user_input.startswith("/"):
-            self.chat([user_input], retrieve=True)
+            self.chat([user_input], no_retrieval=False)
             return True
         user_input = user_input[1:]
         args = self.router.parse(user_input)

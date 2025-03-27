@@ -33,6 +33,7 @@ class Repl:
                 break
 
             try:
-                self.responder.respond_to(user_input)
+                if not self.responder.respond_to(user_input):
+                    break
             except KeyboardInterrupt:
                 print()

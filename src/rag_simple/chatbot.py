@@ -52,18 +52,21 @@ class Response(Stream):
     def __iter__(self):
         return self.stream
 
-    def print(self, save=True, file: IOBase = None, end="\n"):
+    def iter_message(self):
+        total = ""
+        for content in self.stream:
+            yield content
+            total += content
+        self.chatbot.add_assistant_message(total)
+
+    def print(self, file: IOBase = None, end="\n"):
         if self.stream is None:
             return
         if file is None:
             file = sys.stdout
-        total = ""
-        for content in self.stream:
+        for content in self.iter_message():
             print(content, end="", flush=True, file=file)
-            total += content
         print(end, end="", file=file)
-        if save:
-            self.chatbot.add_assistant_message(total)
 
 
 class Chatbot:

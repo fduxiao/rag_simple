@@ -9,6 +9,7 @@ from .kv_model import KVModel, Field
 from .flow_manager import FlowManager
 from .llm_agent import LLM, LLMConfig
 from .path_builder import PathBuilder
+from .repl import Repl
 from .vector_db import VectorDBConfig, load_vector_db
 
 
@@ -172,25 +173,5 @@ class RAGProject:
             return
 
         # enter ask-answer loop
-        while True:
-            try:
-                user_input = input(">>> ")
-            except KeyboardInterrupt:
-                print()
-                continue
-            except EOFError:
-                print()
-                return
-
-            # parse user input
-            if user_input.startswith("/retrieve "):
-                user_input = user_input[len("/retrieve ") :]
-                chatbot.retrieve(user_input, limit=1)
-                continue
-
-            chatbot.retrieve(user_input, limit=limit).drain()
-
-            try:
-                chatbot.chat(user_input).print()
-            except KeyboardInterrupt:
-                continue
+        repl = Repl(chatbot, limit)
+        repl.loop()

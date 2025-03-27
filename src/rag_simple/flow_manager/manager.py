@@ -1,6 +1,7 @@
 from typing import Iterable
 from pathlib import Path
 
+from ..chatbot import Chatbot
 from ..document import Document
 from ..llm_agent import BaseLLM
 from ..prompt import Knowledge, Prompt
@@ -56,3 +57,7 @@ class FlowManager:
         self.setup()
         embedding = self.embed([text])
         return self.vector_db.retrieve(embedding, limit=limit)
+
+    def chatbot(self):
+        self.setup()
+        return Chatbot(self.chat, self.retrieve_text)

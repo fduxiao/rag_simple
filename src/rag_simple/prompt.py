@@ -21,6 +21,10 @@ class Prompt:
     def __init__(self):
         self.messages = []
 
+    def extend(self, iterable):
+        self.messages.extend(iterable)
+        return self
+
     def add_message(self, content, role="user"):
         self.messages.append({"role": role, "content": content})
         return self

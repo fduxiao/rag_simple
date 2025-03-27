@@ -9,7 +9,6 @@ from .kv_model import KVModel, Field
 from .flow_manager import FlowManager
 from .llm_agent import LLM, LLMConfig
 from .path_builder import PathBuilder
-from .prompt import Prompt
 from .vector_db import VectorDBConfig, load_vector_db
 
 
@@ -20,8 +19,8 @@ class PromptConfig(KVModel):
             {"role": "system", "content": "Response concisely."},
             {
                 "role": "system",
-                "content": "You will be given some references, related or not related to user input.\n"
-                "Judge whether they are related or not, and then response based on those references.",
+                "content": "You will be given some references, related or not related to user input."
+                "Response based on those related references.",
             },
         ]
     )
@@ -162,23 +161,17 @@ class RAGProject:
         self.paths.embeddings_update_file.unlink(missing_ok=True)
 
     def ask(self, question, limit):
-        retrieval_prefix = self.config.prompt.retrieval_prefix
-        prompt = Prompt()
-        prompt.messages.extend(self.config.prompt.preset)
+        chatbot = self.flow_manager.chatbot()
+        chatbot.set_retrieval_prefix(self.config.prompt.retrieval_prefix)
+        chatbot.extend(self.config.prompt.preset)
 
         if question is not None:
-            # make embedding
-            for knowledge in self.flow_manager.retrieve_text(question, limit=limit):
+            for knowledge in chatbot.retrieve(question, limit):
                 print(f"{knowledge.metadata['role']}: ", repr(knowledge.text.strip()))
-                prompt.add_knowledge(knowledge.set_prefix(retrieval_prefix))
-            prompt.add_message(question, role="user")
-            for content in self.flow_manager.chat(prompt):
-                print(content, end="", flush=True)
-            print()
+            chatbot.chat(question).print()
             return
 
         # enter ask-answer loop
-        retrieved = set()
         while True:
             try:
                 user_input = input(">>> ")
@@ -192,26 +185,12 @@ class RAGProject:
             # parse user input
             if user_input.startswith("/retrieve "):
                 user_input = user_input[len("/retrieve ") :]
-                # add knowledge
-                for knowledge in self.flow_manager.retrieve_text(user_input, limit=1):
-                    if knowledge.id not in retrieved:
-                        prompt.add_knowledge(knowledge.set_prefix(retrieval_prefix))
-                        retrieved.add(knowledge.id)
+                chatbot.retrieve(user_input, limit=1)
                 continue
 
-            for knowledge in self.flow_manager.retrieve_text(user_input, limit=limit):
-                if knowledge.id not in retrieved:
-                    prompt.add_knowledge(knowledge)
-                    retrieved.add(knowledge.id)
-            prompt.add_message(user_input, role="user")
+            chatbot.retrieve(user_input, limit=limit).drain()
 
             try:
-                response = ""
-                for content in self.flow_manager.chat(prompt):
-                    response += content
-                    print(content, end="", flush=True)
-                print()
+                chatbot.chat(user_input).print()
             except KeyboardInterrupt:
                 continue
-
-            prompt.add_message(response, role="assistant")
